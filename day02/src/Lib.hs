@@ -3,26 +3,32 @@ module Lib
     ) where
 
 result :: IO ()
-result = print $ fixGravity initialProgram
+result = print $ fixGravity
 
-fixGravity :: [Int] -> Int
-fixGravity program = head [ (100 * x) + y | x<- [0..99], y<-[0..99], (head (func 0 (setup program x y)))== theEnd]
+fixGravity :: Maybe Int
+fixGravity = lookup theEnd [(findOutput noun verb, answer noun verb) | noun <- [0..99], verb <- [0..99]]
 
 theEnd :: Int
 theEnd = 19690720
+
+findOutput :: Int -> Int -> Int
+findOutput noun verb = head $ run 0 $ setup initialProgram noun verb
+
+answer :: Int -> Int -> Int
+answer noun verb = 100 * noun + verb
 
 setup :: [Int] -> Int -> Int -> [Int]
 setup program noun verb =
     (head program) : noun : verb : (drop 3 program)
 
-func :: Int -> [Int] -> [Int]
-func address memory
+run :: Int -> [Int] -> [Int]
+run address memory
     | opcode address memory == 99   = memory
-    | opcode address memory == 1    = func (address+4) (execute address memory (+))
-    | opcode address memory == 2    = func (address+4) (execute address memory (*))
+    | opcode address memory == 1    = run (address+4) (execute address memory (+))
+    | opcode address memory == 2    = run (address+4) (execute address memory (*))
     | otherwise                     = [-1]
 
-execute address memory operator = replaceNth (resultAddress address memory) (operator (value1 address memory) (value2 address memory)) memory
+execute address memory fnc = replaceNth (resultAddress address memory) (fnc (value1 address memory) (value2 address memory)) memory
 
 opcode :: Int -> [Int] -> Int
 opcode address memory =
