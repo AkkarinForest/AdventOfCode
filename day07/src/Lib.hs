@@ -1,24 +1,33 @@
 module Lib
-    ( result
+    ( run
+    , runInit
     ) where
 
-result :: [Int] -> [Int] -> [Int]
-result input program = run input [] initAddress program
+run :: Int -> Int -> [Int] -> ([Int], Int, Int, Int)
+run input address memory
+    | opcode address memory == 1    = run input (address+4) (execute address memory (+))
+    | opcode address memory == 2    = run input (address+4) (execute address memory (*))
+    | opcode address memory == 5    = run input (jumpTo address memory (/=)) memory
+    | opcode address memory == 6    = run input (jumpTo address memory (==)) memory
+    | opcode address memory == 7    = run input (address+4) (compareAndSave address memory (<))
+    | opcode address memory == 8    = run input (address+4) (compareAndSave address memory (==))
+    | opcode address memory == 3    = run input (address+2) (replaceNth (memory!!(address+1)) input memory)
+    | opcode address memory == 4    = (memory, address + 2, myread (address+1) memory (mode1 address memory), 4)
+    | opcode address memory == 99   = (memory, address, input, 99)
+    | otherwise                     = (memory, address, 999999999999999, 0)
 
-initAddress = 0
-
-run :: [Int] -> [Int] -> Int -> [Int] -> [Int]
-run input output address memory
-    | opcode address memory == 99   = output
-    | opcode address memory == 1    = run input output (address+4) (execute address memory (+))
-    | opcode address memory == 2    = run input output (address+4) (execute address memory (*))
-    | opcode address memory == 3    = run (tail input) output (address+2) (replaceNth (memory!!(address+1)) (head input) memory)
-    | opcode address memory == 4    = run input (myread (address+1) memory (mode1 address memory) : output) (address+2) memory
-    | opcode address memory == 5    = run input output (jumpTo address memory (/=)) memory
-    | opcode address memory == 6    = run input output (jumpTo address memory (==)) memory
-    | opcode address memory == 7    = run input output (address+4) (compareAndSave address memory (<))
-    | opcode address memory == 8    = run input output (address+4) (compareAndSave address memory (==))
-    | otherwise                     = [-1]
+runInit :: [Int] -> Int -> [Int] -> ([Int], Int, Int, Int)
+runInit input address memory
+    | opcode address memory == 1    = runInit input (address+4) (execute address memory (+))
+    | opcode address memory == 2    = runInit input (address+4) (execute address memory (*))
+    | opcode address memory == 5    = runInit input (jumpTo address memory (/=)) memory
+    | opcode address memory == 6    = runInit input (jumpTo address memory (==)) memory
+    | opcode address memory == 7    = runInit input (address+4) (compareAndSave address memory (<))
+    | opcode address memory == 8    = runInit input (address+4) (compareAndSave address memory (==))
+    | opcode address memory == 3    = runInit (tail input) (address+2) (replaceNth (memory!!(address+1)) (head input) memory)
+    | opcode address memory == 4    = (memory, address + 2, myread (address+1) memory (mode1 address memory), 4)
+    | opcode address memory == 99   = (memory, address, head input, 99)
+    | otherwise                     = (memory, address, 999999999999, 0)
 
 execute address memory fnc =
     let m1 = (mode1 address memory)
@@ -71,4 +80,3 @@ replaceNth _ _ [] = []
 replaceNth n newVal (x:xs)
    | n == 0 = newVal:xs
    | otherwise = x:replaceNth (n-1) newVal xs
-
