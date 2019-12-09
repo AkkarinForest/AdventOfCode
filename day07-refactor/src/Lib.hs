@@ -3,63 +3,46 @@ module Lib
     ) where
 
 import           Control.Monad   (guard)
-import           Data.List       (permutations, uncons)
+import           Data.List       (uncons)
 import qualified Data.Map.Strict as M
+import           Data.Maybe      (maybeToList)
 import qualified Data.Set        as S
 
 main = print $ maximum signals
 
+signals = runThrough 0 <$> initialPrograms
+
+initialPrograms  = do
+  a <- [5..9]
+  b <- [5..9]
+  c <- [5..9]
+  d <- [5..9]
+  e <- [5..9]
+  let phase = [a,b,c,d,e]
+  guard $ S.fromList [5..9] == S.fromList phase
+  pure $ map (\phase -> (Just phase, 0, initial)) phase
+
 initial ::M.Map Int Int
 initial = M.fromList $ zip [0..] input
 
--- phases1 :: [[Int]]
-phases1 =  permutations [1,2,3,4,5]
-
-phases  = do
-  a <- [0..4]
-  b <- [0..4]
-  c <- [0..4]
-  d <- [0..4]
-  e <- [0..4]
-  let phase = [a,b,c,d,e]
-  guard $ S.fromList [0..4] == S.fromList phase
-  pure phase
-
-runThrough :: Int -> [Int] -> Int
+runThrough :: Int -> [(Maybe Int, Int, M.Map Int Int)] -> Int
 runThrough input [] = input
-runThrough input (phase:phases) =
-  case run 0 [phase, input] initial of
-    Just ([output], _) -> runThrough output phases
-    Just ([],_)        -> error "empty output"
-    Nothing            -> error "whoops"
+runThrough input ((phase, idx, prog):progs) =
+  case run idx (maybeToList phase ++ [input]) prog of
+    Just (idx', Just output, prog') -> runThrough output (progs ++ [(Nothing, idx', prog')])
+    _           -> input
 
-signals = runThrough 0 <$> phases
-
-getOp :: Int -> Maybe (Int -> Int -> Int)
-getOp 1 = Just (+)
-getOp 2 = Just (*)
-getOp 7 = Just (\a b -> if a < b then 1 else 0)
-getOp 8 = Just (\a b -> if a == b then 1 else 0)
-getOp _ = Nothing
-
-getIdx 5 a b idx = Just $ if a /= 0 then b else idx+3
-getIdx 6 a b idx = Just $ if a == 0 then b else idx+3
-getIdx _ _ _ _   = Nothing
-
-inputValue = 5
-
-run :: Int -> [Int] -> M.Map Int Int -> Maybe ([Int], M.Map Int Int)
+run :: Int -> [Int] -> M.Map Int Int -> Maybe (Int, Maybe Int, M.Map Int Int)
 run idx inputs acc = do
   case opCode of
-    99 -> pure ([], acc)
+    99 -> pure (idx, Nothing, acc)
     3 -> do
       pos <- M.lookup (idx + 1) acc
       (input, remaining) <- uncons inputs
       run (idx + 2) remaining $ M.insert pos input acc
     4 -> do
       val1 <- getVal idx acc 1 getmode1
-      (outputs, acc') <- run (idx + 2) inputs acc
-      pure (val1:outputs, acc')
+      pure (idx + 2, Just val1, acc)
     n | n `elem` [5,6] -> do
       val1 <- getVal idx acc 1 getmode1
       val2 <- getVal idx acc 2 getmode2
@@ -77,6 +60,17 @@ getVal idx acc shift getmode = do
       pos <- M.lookup (idx + shift) acc
       mode <- Just (getmode idx acc)
       if mode == 0 then M.lookup pos acc else Just pos
+
+getOp :: Int -> Maybe (Int -> Int -> Int)
+getOp 1 = Just (+)
+getOp 2 = Just (*)
+getOp 7 = Just (\a b -> if a < b then 1 else 0)
+getOp 8 = Just (\a b -> if a == b then 1 else 0)
+getOp _ = Nothing
+
+getIdx 5 a b idx = Just $ if a /= 0 then b else idx+3
+getIdx 6 a b idx = Just $ if a == 0 then b else idx+3
+getIdx _ _ _ _   = Nothing
 
 getOpcode :: Int -> M.Map Int Int -> Int
 getOpcode idx acc =
