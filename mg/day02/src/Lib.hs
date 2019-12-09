@@ -2,41 +2,101 @@ module Lib
     ( main
     ) where
 
+import           Control.Monad   (guard)
+import           Data.List       (permutations, uncons)
 import qualified Data.Map.Strict as M
+import qualified Data.Set        as S
 
-main = case filter (\(_,_, t) -> (run 0 t >>= M.lookup 0)==Just sought) trials of
-  ((noun, verb, _):_) -> print $ 100 * noun + verb
-  _                   -> print "no result"
+main = print $ maximum signals
 
-initial :: Int -> Int -> M.Map Int Int
-initial noun verb = M.insert 2 verb $ M.insert 1 noun $ M.fromList $ zip [0..] input
+initial ::M.Map Int Int
+initial = M.fromList $ zip [0..] input
 
-trials = do
-  noun <- [0..99]
-  verb <-[0..99]
-  pure $ (noun, verb, initial noun verb)
+-- phases1 :: [[Int]]
+phases1 =  permutations [1,2,3,4,5]
+
+phases  = do
+  a <- [0..4]
+  b <- [0..4]
+  c <- [0..4]
+  d <- [0..4]
+  e <- [0..4]
+  let phase = [a,b,c,d,e]
+  guard $ S.fromList [0..4] == S.fromList phase
+  pure phase
+
+runThrough :: Int -> [Int] -> Int
+runThrough input [] = input
+runThrough input (phase:phases) =
+  case run 0 [phase, input] initial of
+    Just ([output], _) -> runThrough output phases
+    Just ([],_)        -> error "empty output"
+    Nothing            -> error "whoops"
+
+signals = runThrough 0 <$> phases
 
 getOp :: Int -> Maybe (Int -> Int -> Int)
 getOp 1 = Just (+)
 getOp 2 = Just (*)
+getOp 7 = Just (\a b -> if a < b then 1 else 0)
+getOp 8 = Just (\a b -> if a == b then 1 else 0)
 getOp _ = Nothing
 
-run :: Int -> M.Map Int Int -> Maybe (M.Map Int Int)
-run ip acc = do
-  opCode <- M.lookup ip acc
+getIdx 5 a b idx = Just $ if a /= 0 then b else idx+3
+getIdx 6 a b idx = Just $ if a == 0 then b else idx+3
+getIdx _ _ _ _   = Nothing
+
+inputValue = 5
+
+run :: Int -> [Int] -> M.Map Int Int -> Maybe ([Int], M.Map Int Int)
+run idx inputs acc = do
   case opCode of
-    99 -> pure acc
-    n -> do
-      aPos <- M.lookup (ip + 1) acc
-      aVal <- M.lookup aPos acc
-      bPos <- M.lookup (ip + 2) acc
-      bVal <- M.lookup bPos acc
-      cPos <- M.lookup (ip + 3) acc
+    99 -> pure ([], acc)
+    3 -> do
+      pos <- M.lookup (idx + 1) acc
+      (input, remaining) <- uncons inputs
+      run (idx + 2) remaining $ M.insert pos input acc
+    4 -> do
+      val1 <- getVal idx acc 1 getmode1
+      (outputs, acc') <- run (idx + 2) inputs acc
+      pure (val1:outputs, acc')
+    n | n `elem` [5,6] -> do
+      val1 <- getVal idx acc 1 getmode1
+      val2 <- getVal idx acc 2 getmode2
+      idx' <- getIdx n val1 val2 idx
+      run idx' inputs acc
+    n | n `elem` [1,2,7,8] -> do
+      val1 <- getVal idx acc 1 getmode1
+      val2 <- getVal idx acc 2 getmode2
+      pos3 <- M.lookup (idx + 3) acc
       op <- getOp n
-      run (ip + 4) $ M.insert cPos (op aVal bVal) acc
+      run (idx + 4) inputs $ M.insert pos3 (op val1 val2) acc
+  where opCode = getOpcode idx acc
 
+getVal idx acc shift getmode = do
+      pos <- M.lookup (idx + shift) acc
+      mode <- Just (getmode idx acc)
+      if mode == 0 then M.lookup pos acc else Just pos
 
-sought =19690720
+getOpcode :: Int -> M.Map Int Int -> Int
+getOpcode idx acc =
+    let mcode = M.lookup idx acc
+    in case mcode of
+       Just code -> code - ((div code 100) * 100)
+       Nothing   -> 0
+
+getmode1 :: Int -> M.Map Int Int -> Int
+getmode1 idx acc =
+    let mcode = M.lookup idx acc
+    in case mcode of
+       Just code -> div code 100 - (div code 1000) * 10
+       Nothing   -> 0
+
+getmode2 idx acc =
+    let mcode = M.lookup idx acc
+    in case mcode of
+       Just code -> div code 1000 - (div code 10000) * 10
+       Nothing   -> 0
 
 input :: [Int]
-input = [1,0,0,3,1,1,2,3,1,3,4,3,1,5,0,3,2,1,9,19,1,13,19,23,2,23,9,27,1,6,27,31,2,10,31,35,1,6,35,39,2,9,39,43,1,5,43,47,2,47,13,51,2,51,10,55,1,55,5,59,1,59,9,63,1,63,9,67,2,6,67,71,1,5,71,75,1,75,6,79,1,6,79,83,1,83,9,87,2,87,10,91,2,91,10,95,1,95,5,99,1,99,13,103,2,103,9,107,1,6,107,111,1,111,5,115,1,115,2,119,1,5,119,0,99,2,0,14,0]
+input = [3,8,1001,8,10,8,105,1,0,0,21,42,67,76,89,110,191,272,353,434,99999,3,9,102,2,9,9,1001,9,2,9,1002,9,2,9,1001,9,2,9,4,9,99,3,9,1001,9,4,9,102,4,9,9,101,3,9,9,1002,9,2,9,1001,9,4,9,4,9,99,3,9,102,5,9,9,4,9,99,3,9,1001,9,3,9,1002,9,3,9,4,9,99,3,9,102,3,9,9,101,2,9,9,1002,9,3,9,101,5,9,9,4,9,99,3,9,1001,9,2,9,4,9,3,9,102,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,102,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,102,2,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,99,3,9,102,2,9,9,4,9,3,9,101,1,9,9,4,9,3,9,101,1,9,9,4,9,3,9,102,2,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,3,9,101,2,9,9,4,9,3,9,101,1,9,9,4,9,3,9,101,2,9,9,4,9,3,9,101,2,9,9,4,9,99,3,9,102,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,102,2,9,9,4,9,3,9,101,1,9,9,4,9,3,9,102,2,9,9,4,9,3,9,101,2,9,9,4,9,3,9,101,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,2,9,9,4,9,99,3,9,102,2,9,9,4,9,3,9,1001,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,1,9,9,4,9,3,9,102,2,9,9,4,9,3,9,101,2,9,9,4,9,3,9,101,2,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,101,1,9,9,4,9,3,9,1002,9,2,9,4,9,99,3,9,1002,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,1002,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,102,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,1001,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,2,9,9,4,9,99]
