@@ -14,13 +14,20 @@ data Planet a = Moon a | Planet a [Planet a] deriving Show
 result :: IO ()
 result= do
         orbitsData <- lines <$> readFile "src/input2.txt"
-        print $ countOrbits orbitsData
+        print $ countOrbits $ map (splitOn ")") orbitsData
 
---countOrbits :: [String] -> Planet String
-countOrbits orbitsData =
-    let orbits :: [[String]]
-        orbits = map (\orbit -> splitOn ")" orbit) orbitsData
-        firstOrbit = findCOM orbits
+findPlanet orbitsData = 1
+
+
+planetDepth2 :: Planet a -> Int
+planetDepth2 (Moon a)           = 0
+planetDepth2 (Planet _ planets) = 1 + (maximum $ map planetDepth planets)
+
+-- first star --
+
+countOrbits :: [[String]] -> Int
+countOrbits orbits =
+    let firstOrbit = findCOM orbits
         parent = head firstOrbit
         child = firstOrbit!!1
         nextPlanet = moonOrPlanet (findNextOrbit orbits child) orbits child
@@ -41,4 +48,4 @@ planetDepth :: Planet a -> Int
 planetDepth (Moon a)           = 0
 planetDepth (Planet _ planets) = sum $ map (\n -> n+1) $ map (\planet -> planetDepth planet) planets
 
-findCOM orbits = fromJust $ find (\orbit -> (head orbit) == "COM") orbits
+findCOM = fromJust . find (\orbit -> (head orbit) == "COM")
