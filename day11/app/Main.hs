@@ -2,5 +2,5 @@ module Main where
 
 import           Robot
 
-main :: IO ()
+-- main :: IO ()
 main = run
