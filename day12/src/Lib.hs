@@ -16,8 +16,12 @@ initVel = [[0,0,0],[0,0,0],[0,0,0],[0,0,0]]
 initMoons :: [Moon]
 initMoons = zip initCoor initVel
 
-run :: IO ()
-run = print $ foldl (\acc moon -> acc + (calcE moon)) 0 $ last $ take 1001 $ iterate moveTheMoons initMoons
+-- run :: IO ()
+run = print $ findIndex (\i -> i == True) $ repeated <$> iterate moveTheMoons initMoons
+
+repeated moonsStates = elem (last moonsStates) (L.init moonsStates)
+
+firstStar = foldl (\acc moon -> acc + (calcE moon)) 0 $ last $ take 1001 $ iterate moveTheMoons initMoons
 
 calcE (c, v) = pE * kE
     where pE = sum $ abs <$> c
