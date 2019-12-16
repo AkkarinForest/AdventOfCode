@@ -16,14 +16,18 @@ import qualified System.Console.ANSI as S
 inf = 999
 padd = 3
 
+width = 20
+hight = 25
+
 type Coor = (Int, Int)
-initCoor :: Coor = (21,25)
+initCoor :: Coor = (width+1,hight)
 type SectionMap = [[(Char,Int)]]
-l = replicate 20 (' ', inf)
-ml = l ++ [('B',inf)] ++ l
-il = replicate 41 (' ', inf)
-ib = replicate 25 il
-initMap :: SectionMap = ib ++ [ml] ++ ib
+ll = replicate width (' ', inf)
+centralLine = ll ++ [('B',inf)] ++ ll
+initLine = replicate (2*width + 1) (' ', inf)
+initLines = replicate hight initLine
+initMap :: SectionMap = initLines ++ [centralLine] ++ initLines
+-- initMap' = [[('.',inf)]]
 type Dir = Int
 initDir :: Dir = 1
 
@@ -32,20 +36,35 @@ run = do
   input :: [Int] <- fmap read . fmap T.unpack . T.splitOn "," <$> TIO.readFile "src/input.txt"
   let prg = (input ++ (replicate 1000 0), 0,0,0)
   let (rCoor, prg', dir, sectionMap) = startSearch prg
-  display rCoor prg' dir sectionMap 1
+  firstStar rCoor prg' dir sectionMap 1
+--
+-- displayPrograss :: Coor -> I.Program -> Dir -> SectionMap -> Int -> IO ()
+-- displayPrograss rCoor prg dir sectionMap stepCount = do
+--   let (rCoor', prg', dir', sectionMap', obj', stepCount') = search rCoor prg dir sectionMap stepCount
+--   mapM putStrLn $ drawRobot rCoor' $ (\l-> (\(c, i) ->c) <$> l) <$> sectionMap'
+--   -- mapM_ print $ (\l -> intercalate " " $ (\x -> toSteps x) <$> l) <$> drawRobot2 rCoor' sectionMap'
+--   print (rCoor', dir', obj')
+--   -- threadDelay 100000
+--   S.clearScreen
+--   case obj' of
+--       2                  -> displayPrograss rCoor' prg' dir' sectionMap' stepCount'
+--       n | n `elem` [0,1] -> displayPrograss rCoor' prg' dir' sectionMap' stepCount'
+--       n                  -> error $ "object out of range in v: " ++ show n
 
-display :: Coor -> I.Program -> Dir -> SectionMap -> Int -> IO ()
-display rCoor prg dir sectionMap stepCount = do
+
+firstStar :: Coor -> I.Program -> Dir -> SectionMap -> Int -> IO ()
+firstStar rCoor prg dir sectionMap stepCount = do
   let (rCoor', prg', dir', sectionMap', obj', stepCount') = search rCoor prg dir sectionMap stepCount
-  -- mapM putStrLn $ drawRobot rCoor' $ (\l-> (\(c, i) ->c) <$> l) <$> sectionMap'
-  mapM_ print $ (\l -> intercalate " " $ (\x -> toSteps x) <$> l) <$> drawRobot2 rCoor' sectionMap'
-  print (rCoor', dir', obj')
-  threadDelay 100
   S.clearScreen
   case obj' of
-      2                  -> display rCoor' prg' dir' sectionMap' stepCount'
-      n | n `elem` [0,1] -> display rCoor' prg' dir' sectionMap' stepCount'
+      2                  -> display sectionMap' (stepCount + 1)
+      n | n `elem` [0,1] -> firstStar rCoor' prg' dir' sectionMap' stepCount'
       n                  -> error $ "object out of range in v: " ++ show n
+
+display sectionMap stepCount= do
+  mapM putStrLn $ (\l-> (\(c, i) ->c) <$> l) <$> sectionMap
+  -- mapM_ print $ (\l -> intercalate " " $ (\x -> toSteps x) <$> l) <$> drawRobot2 rCoor' sectionMap'
+  print $ "Shortes path has: " ++ show stepCount ++ " steps"
 
 
 drawRobot2 :: (Int, Int) -> [[(Char, Int)]] -> [[(Char, Int)]]
@@ -101,17 +120,19 @@ mark robotCoor objCoor sectionMap obj stepCount =
     ('B',_) -> (adjRCoor, adjMap, stepCount')
     cc      -> (adjRCoor, replaceNth y newLine adjMap, stepCount')
   where newLine = replaceNth x (obj', stepCount') (adjMap!!y)
-        stepCount' = countNewStepCount obj stepCount
+        stepCount' = countNewStepCount obj stepCount oldStepCount
+        (sign, oldStepCount) = adjMap!!y!!x
         obj' = objSign obj
         (x, y) = adjOCoor
         adjRCoor = adjustCoor objCoor robotCoor
         adjOCoor = adjustCoor objCoor objCoor
         adjMap = adjustMap sectionMap objCoor
 
-countNewStepCount obj sc =
+countNewStepCount :: Int -> Int -> Int -> Int
+countNewStepCount obj sc oldSC =
   case obj of
     0 -> sc
-    n | n `elem` [1,2] -> sc + 1
+    n | n `elem` [1,2] -> minimum [sc + 1, oldSC]
     n                  -> error $ "object out of range in countNewStepCount: " ++ show n
 
 
