@@ -7,16 +7,23 @@ module Robot
     ) where
 
 import           Control.Concurrent
-import           Data.List          as L
-import qualified Data.Text          as T
-import qualified Data.Text.IO       as TIO
-import qualified Intcode            as I
+import           Data.List           as L
+import qualified Data.Text           as T
+import qualified Data.Text.IO        as TIO
+import qualified Intcode             as I
+import qualified System.Console.ANSI as S
 
+inf = 999
+padd = 3
 
 type Coor = (Int, Int)
-initCoor :: Coor = (0,0)
+initCoor :: Coor = (21,25)
 type SectionMap = [[(Char,Int)]]
-initMap :: SectionMap = ["B"]
+l = replicate 20 (' ', inf)
+ml = l ++ [('B',inf)] ++ l
+il = replicate 41 (' ', inf)
+ib = replicate 25 il
+initMap :: SectionMap = ib ++ [ml] ++ ib
 type Dir = Int
 initDir :: Dir = 1
 
@@ -25,39 +32,51 @@ run = do
   input :: [Int] <- fmap read . fmap T.unpack . T.splitOn "," <$> TIO.readFile "src/input.txt"
   let prg = (input ++ (replicate 1000 0), 0,0,0)
   let (rCoor, prg', dir, sectionMap) = startSearch prg
-  display rCoor prg' dir sectionMap
+  display rCoor prg' dir sectionMap 1
 
-display :: Coor -> I.Program -> Dir -> SectionMap -> IO ()
-display rCoor prg dir sectionMap = do
-  let (rCoor', prg', dir', sectionMap', obj') = search rCoor prg dir sectionMap
-  mapM putStrLn $ drawRobot rCoor' $ sectionMap'
+display :: Coor -> I.Program -> Dir -> SectionMap -> Int -> IO ()
+display rCoor prg dir sectionMap stepCount = do
+  let (rCoor', prg', dir', sectionMap', obj', stepCount') = search rCoor prg dir sectionMap stepCount
+  -- mapM putStrLn $ drawRobot rCoor' $ (\l-> (\(c, i) ->c) <$> l) <$> sectionMap'
+  mapM_ print $ (\l -> intercalate " " $ (\x -> toSteps x) <$> l) <$> drawRobot2 rCoor' sectionMap'
   print (rCoor', dir', obj')
-  -- threadDelay 100000
+  threadDelay 100
+  S.clearScreen
   case obj' of
-      2                  -> display rCoor' prg' dir' sectionMap'
-      n | n `elem` [0,1] -> display rCoor' prg' dir' sectionMap'
+      2                  -> display rCoor' prg' dir' sectionMap' stepCount'
+      n | n `elem` [0,1] -> display rCoor' prg' dir' sectionMap' stepCount'
       n                  -> error $ "object out of range in v: " ++ show n
+
+
+drawRobot2 :: (Int, Int) -> [[(Char, Int)]] -> [[(Char, Int)]]
+drawRobot2 (x,y) sectionMap =
+  replaceNth y newLine sectionMap
+  where newLine = replaceNth x ('@', c) (sectionMap!!y)
+        (s, c) = (sectionMap!!y)!!x
+
+toSteps (s, c) =
+  (\x -> [s] ++ replicate (padd - length x) '0' ++ x) (show c)
 
 startSearch :: I.Program -> (Coor, I.Program, Dir, SectionMap)
 startSearch prg =
   (adjustedRCoor, prg', dir, sectionMap)
   where   dir = findNextDir initDir obj
-          (adjustedRCoor, sectionMap) = mark rCoor objCoor initMap obj
+          (adjustedRCoor, sectionMap, _) = mark rCoor objCoor initMap obj 0
           (rCoor, objCoor, prg', obj) = move (initCoor, prg) initDir
 
-search :: Coor -> I.Program -> Dir -> SectionMap -> (Coor, I.Program, Dir, SectionMap, Int)
-search rCoor prg dir sectionMap =
-  (adjustedRCoor', prg', dir', sectionMap', obj')
+search :: Coor -> I.Program -> Dir -> SectionMap -> Int -> (Coor, I.Program, Dir, SectionMap, Int, Int)
+search rCoor prg dir sectionMap stepCount =
+  (adjustedRCoor', prg', dir', sectionMap', obj', stepCount')
   where
         dir' = findNextDir dir obj'
-        (adjustedRCoor', sectionMap') = mark rCoor' objCoor' sectionMap obj'
+        (adjustedRCoor', sectionMap', stepCount') = mark rCoor' objCoor' sectionMap obj' stepCount
         (rCoor', objCoor', prg', obj') = move (rCoor, prg) dir
 
 findNextDir :: Int -> Int -> Int
 findNextDir dir obj =
   case obj of
     1                  -> case dir of
-                            1 -> 3 -- N -> N
+                            1 -> 3 -- N -> W
                             4 -> 1 -- E -> N
                             2 -> 4 -- S -> E
                             3 -> 2 -- w -> S
@@ -76,17 +95,25 @@ move (coor, prg) dir =
         (_,_,_,obj) = newPrg
         newPrg = I.processInput prg dir
 
-mark :: Coor -> Coor -> SectionMap -> Int -> (Coor, SectionMap)
-mark robotCoor objCoor sectionMap obj =
+mark :: Coor -> Coor -> SectionMap -> Int -> Int -> (Coor, SectionMap, Int)
+mark robotCoor objCoor sectionMap obj stepCount =
   case (adjMap!!y!!x) of
-    'B' -> (adjRCoor, adjMap)
-    cc  ->  (adjRCoor, replaceNth y newLine adjMap)
-  where newLine = replaceNth x obj' (adjMap!!y)
+    ('B',_) -> (adjRCoor, adjMap, stepCount')
+    cc      -> (adjRCoor, replaceNth y newLine adjMap, stepCount')
+  where newLine = replaceNth x (obj', stepCount') (adjMap!!y)
+        stepCount' = countNewStepCount obj stepCount
         obj' = objSign obj
         (x, y) = adjOCoor
         adjRCoor = adjustCoor objCoor robotCoor
         adjOCoor = adjustCoor objCoor objCoor
         adjMap = adjustMap sectionMap objCoor
+
+countNewStepCount obj sc =
+  case obj of
+    0 -> sc
+    n | n `elem` [1,2] -> sc + 1
+    n                  -> error $ "object out of range in countNewStepCount: " ++ show n
+
 
 adjustCoor :: Coor -> Coor -> Coor
 adjustCoor (x,y) (ox, oy) = (nx,ny)
@@ -111,7 +138,7 @@ adjustMapX x sectionMap
         maxX = maximum $ length <$> sectionMap
         newPointsEast = newPoints (x - maxX +1)
         newPointsWest = newPoints (abs x)
-        newPoints n = replicate n ' '
+        newPoints n = replicate n (' ',inf)
 
 adjustMapY :: Int -> SectionMap -> SectionMap
 adjustMapY y sectionMap
@@ -124,7 +151,7 @@ adjustMapY y sectionMap
         newLinesNorth = replicate (abs y) newLine
         newLinesSouth = replicate (y - maxY + 1) newLine
         newLines n = replicate n newLine
-        newLine = replicate maxX ' '
+        newLine = replicate maxX (' ',inf)
 
 objSign obj =
   case obj of
