@@ -15,7 +15,7 @@ import qualified Intcode            as I
 
 type Coor = (Int, Int)
 initCoor :: Coor = (0,0)
-type SectionMap = [[Char]]
+type SectionMap = [[(Char,Int)]]
 initMap :: SectionMap = ["B"]
 type Dir = Int
 initDir :: Dir = 1
@@ -80,7 +80,7 @@ mark :: Coor -> Coor -> SectionMap -> Int -> (Coor, SectionMap)
 mark robotCoor objCoor sectionMap obj =
   case (adjMap!!y!!x) of
     'B' -> (adjRCoor, adjMap)
-    c   ->  (adjRCoor, replaceNth y newLine adjMap)
+    cc  ->  (adjRCoor, replaceNth y newLine adjMap)
   where newLine = replaceNth x obj' (adjMap!!y)
         obj' = objSign obj
         (x, y) = adjOCoor
