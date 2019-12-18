@@ -1,5 +1,6 @@
 module Main where
 
-import           Robot
+import qualified Robot
+import qualified Oxygen
 
-main = run
+main = Oxygen.run

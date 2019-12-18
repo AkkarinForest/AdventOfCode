@@ -4,6 +4,7 @@
 
 module Robot
     ( run
+    , generatLabirynth
     ) where
 
 import           Control.Concurrent
@@ -31,26 +32,34 @@ initMap :: SectionMap = initLines ++ [centralLine] ++ initLines
 type Dir = Int
 initDir :: Dir = 1
 
-run :: IO ()
+-- run :: IO ()
 run = do
   input :: [Int] <- fmap read . fmap T.unpack . T.splitOn "," <$> TIO.readFile "src/input.txt"
   let prg = (input ++ (replicate 1000 0), 0,0,0)
   let (rCoor, prg', dir, sectionMap) = startSearch prg
-  firstStar rCoor prg' dir sectionMap 1
---
--- displayPrograss :: Coor -> I.Program -> Dir -> SectionMap -> Int -> IO ()
--- displayPrograss rCoor prg dir sectionMap stepCount = do
---   let (rCoor', prg', dir', sectionMap', obj', stepCount') = search rCoor prg dir sectionMap stepCount
---   mapM putStrLn $ drawRobot rCoor' $ (\l-> (\(c, i) ->c) <$> l) <$> sectionMap'
---   -- mapM_ print $ (\l -> intercalate " " $ (\x -> toSteps x) <$> l) <$> drawRobot2 rCoor' sectionMap'
---   print (rCoor', dir', obj')
---   -- threadDelay 100000
---   S.clearScreen
---   case obj' of
---       2                  -> displayPrograss rCoor' prg' dir' sectionMap' stepCount'
---       n | n `elem` [0,1] -> displayPrograss rCoor' prg' dir' sectionMap' stepCount'
---       n                  -> error $ "object out of range in v: " ++ show n
+  -- firstStar rCoor prg' dir sectionMap 1
+  let labirynth = generateAll rCoor prg' dir sectionMap 1 0
+  mapM putStrLn $ labirynth
 
+-- generatLabirynth :: [[Char]]
+generatLabirynth = do
+  input :: [Int] <- fmap read . fmap T.unpack . T.splitOn "," <$> TIO.readFile "src/input.txt"
+  let prg = (input ++ (replicate 1000 0), 0,0,0)
+  let (rCoor, prg', dir, sectionMap) = startSearch prg
+  let lab = generateAll rCoor prg' dir sectionMap 1 0
+  pure lab
+
+
+generateAll :: Coor -> I.Program -> Dir -> SectionMap -> Int -> Int -> [[Char]]
+generateAll rCoor prg dir sectionMap stepCount c = do
+  let (rCoor', prg', dir', sectionMap', obj', stepCount') = search rCoor prg dir sectionMap stepCount
+  case c of
+    4000 -> (\l-> (\(c, i) ->c) <$> l) <$> sectionMap'
+    n -> do
+        case obj' of
+            2                  -> generateAll rCoor' prg' dir' sectionMap' stepCount' (c+1)
+            n | n `elem` [0,1] -> generateAll rCoor' prg' dir' sectionMap' stepCount' (c+1)
+            n                  -> error $ "object out of range in v: " ++ show n
 
 firstStar :: Coor -> I.Program -> Dir -> SectionMap -> Int -> IO ()
 firstStar rCoor prg dir sectionMap stepCount = do
