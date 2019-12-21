@@ -2,8 +2,10 @@
 
 module Intcode
     ( run
-    , runD
+    -- , runD
+    , processInput
     , Program
+    , Input
     ) where
 
 initAddress = 0
@@ -14,27 +16,29 @@ type Input = Int
 type Idx = Int
 type Base = Int
 
-run :: Input -> Program -> (Int, Output)
-run input program = process input program
+run :: Program -> (Output, Program)
+run program = process program
 
-runD :: [Int] -> (Int, Output)
-runD program = process 0 (program, 2, 0, [])
+-- runD :: Int -> [Int] -> (Output, Program)
+-- runD program = process 0 (program, 0, 0, [])
 
-process :: Input -> Program -> (Int, Output)
-process input (prg, idx, base, output)
-    | opc == 1    = process input ((execute base idx prg (+)), (idx+4), base, output)
-    | opc == 2    = process input ((execute base idx prg (*)), (idx+4), base, output)
-    | opc == 3    = process input ((replaceNth (prg!!(idx+1)+base) input prg), (idx+2), base, output)
-    | opc == 5    = process input (prg, (jumpTo base idx prg (/=)), base, output)
-    | opc == 6    = process input (prg, (jumpTo base idx prg (==)), base, output)
-    | opc == 7    = process input ((compareAndSave base idx prg (<)), (idx+4), base, output)
-    | opc == 8    = process input ((compareAndSave base idx prg (==)), (idx+4), base, output)
-    | opc == 9    = process input (prg, (idx+2), (newBase base idx prg), output)
-    | opc == 4    = process input (prg, (idx+2), base, newOutput:output)
-    | opc == 99   = (99, output)
-    | otherwise   = (-1, output)
+process :: Program -> (Output, Program)
+process (prg, idx, base, output)
+    | opc == 1    = process ((execute base idx prg (+)), (idx+4), base, output)
+    | opc == 2    = process ((execute base idx prg (*)), (idx+4), base, output)
+    | opc == 3    = (output, (prg, idx, base, output))
+    | opc == 5    = process (prg, (jumpTo base idx prg (/=)), base, output)
+    | opc == 6    = process (prg, (jumpTo base idx prg (==)), base, output)
+    | opc == 7    = process ((compareAndSave base idx prg (<)), (idx+4), base, output)
+    | opc == 8    = process ((compareAndSave base idx prg (==)), (idx+4), base, output)
+    | opc == 9    = process (prg, (idx+2), (newBase base idx prg), output)
+    | opc == 4    = process (prg, (idx+2), base, newOutput:output)
+    | opc == 99   = (output, (prg, idx, base, output))
+    | otherwise   = (output, (prg, idx, base, output))
     where opc = opcode idx prg
           newOutput = myread base (idx+1) prg (mode1 idx prg)
+
+processInput (prg, idx, base, output) input = process ((replaceNth (prg!!(idx+1)+base) input prg), (idx+2), base, output)
 
 newBase base idx prg =
   let m1 = (mode1 idx prg)
